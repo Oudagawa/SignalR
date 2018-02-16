@@ -30,7 +30,7 @@ namespace FunctionalTests
                     // consistent casing makes it cleaner to verify results
                     options.PayloadSerializerSettings.ContractResolver = new DefaultContractResolver();
                 })
-                .AddMessagePackProtocol();
+                .PackProtocol();
 
             services.AddAuthorization(options =>
             {
