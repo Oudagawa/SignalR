@@ -18,6 +18,10 @@ describe("MessageHubProtocol", () => {
         expect(parsedMessages).toEqual([invocation]);
     });
 
+    it("can read Invocation message with Timestamp argument", () => {
+        const bytes = "lQGAwKZtZXRob2SR1v9Y7ByA";
+    })
+
     it("can write/read Invocation message with headers", () => {
         let invocation = <InvocationMessage>{
             headers: {
