@@ -2,8 +2,10 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Net.WebSockets;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Sockets.Client.Http;
@@ -103,10 +105,13 @@ namespace Microsoft.AspNetCore.Sockets.Client
                     var memory = _application.Output.GetMemory();
 
                     // REVIEW: Use new Memory<byte> websocket APIs on .NET Core 2.1
+                    // There's an issue where the result received from the Memory<byte> overload
+                    // is missing properties we use https://github.com/dotnet/corefx/issues/27257
                     memory.TryGetArray(out var arraySegment);
 
                     // Exceptions are handled above where the send and receive tasks are being run.
                     var receiveResult = await _webSocket.ReceiveAsync(arraySegment, _receiveCts.Token);
+
                     if (receiveResult.MessageType == WebSocketMessageType.Close)
                     {
                         _logger.WebSocketClosed(receiveResult.CloseStatus);
@@ -162,7 +167,27 @@ namespace Microsoft.AspNetCore.Sockets.Client
                         {
                             _logger.ReceivedFromApp(buffer.Length);
 
-                            await _webSocket.SendAsync(new ArraySegment<byte>(buffer.ToArray()), webSocketMessageType, true, _transportCts.Token);
+#if NETCOREAPP2_1
+                            if (buffer.IsSingleSegment)
+                            {
+                                await _webSocket.SendAsync(buffer.First, webSocketMessageType, endOfMessage: true, _transportCts.Token);
+                            }
+                            else
+                            {
+                                await _webSocket.SendAsync(buffer.ToArray(), webSocketMessageType, endOfMessage: true, _transportCts.Token);
+                            }
+#else
+                            if (buffer.IsSingleSegment)
+                            {
+                                var isArray = MemoryMarshal.TryGetArray(buffer.First, out var segment);
+                                Debug.Assert(isArray);
+                                await _webSocket.SendAsync(segment, webSocketMessageType, endOfMessage: true, _transportCts.Token);
+                            }
+                            else
+                            {
+                                await _webSocket.SendAsync(new ArraySegment<byte>(buffer.ToArray()), webSocketMessageType, true, _transportCts.Token);
+                            }
+#endif
                         }
                         else if (result.IsCompleted)
                         {

@@ -2,8 +2,13 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.Buffers;
+using System.Diagnostics;
+using System.IO;
 using System.IO.Pipelines;
+using System.Net;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Sockets.Client.Http;
@@ -39,8 +44,7 @@ namespace Microsoft.AspNetCore.Sockets.Client
                             var request = new HttpRequestMessage(HttpMethod.Post, sendUrl);
                             PrepareHttpRequest(request, httpOptions);
 
-                            // TODO: Use a custom stream implementation over the ReadOnlyBuffer<byte>
-                            request.Content = new ByteArrayContent(buffer.ToArray());
+                            request.Content = new ReadOnlyBufferContent(buffer);
 
                             var response = await httpClient.SendAsync(request, transportCts.Token);
                             response.EnsureSuccessStatusCode();
@@ -94,6 +98,36 @@ namespace Microsoft.AspNetCore.Sockets.Client
             if (httpOptions?.AccessTokenFactory != null)
             {
                 request.Headers.Add("Authorization", $"Bearer {httpOptions.AccessTokenFactory()}");
+            }
+        }
+
+        private class ReadOnlyBufferContent : HttpContent
+        {
+            private readonly ReadOnlyBuffer<byte> _buffer;
+
+            public ReadOnlyBufferContent(ReadOnlyBuffer<byte> buffer)
+            {
+                _buffer = buffer;
+            }
+
+            protected override async Task SerializeToStreamAsync(Stream stream, TransportContext context)
+            {
+                foreach (var segment in _buffer)
+                {
+#if NETCOREAPP2_1
+                    await stream.WriteAsync(segment);
+#else
+                    bool isArray = MemoryMarshal.TryGetArray(segment, out var arraySegment);
+                    Debug.Assert(isArray);
+                    await stream.WriteAsync(arraySegment.Array, arraySegment.Offset, arraySegment.Count);
+#endif
+                }
+            }
+
+            protected override bool TryComputeLength(out long length)
+            {
+                length = _buffer.Length;
+                return true;
             }
         }
     }

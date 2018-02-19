@@ -54,10 +54,14 @@ namespace Microsoft.AspNetCore.Sockets.Internal.Transports
                 {
                     foreach (var segment in buffer)
                     {
+#if NETCOREAPP2_1
+                        await context.Response.Body.WriteAsync(segment);
+#else
                         var isArray = MemoryMarshal.TryGetArray(segment, out var arraySegment);
                         // We're using the managed memory pool which is backed by managed buffers
                         Debug.Assert(isArray);
                         await context.Response.Body.WriteAsync(arraySegment.Array, arraySegment.Offset, arraySegment.Count);
+#endif
                     }
                 }
                 finally
