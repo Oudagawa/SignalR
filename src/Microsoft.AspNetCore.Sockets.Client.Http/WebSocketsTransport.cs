@@ -104,21 +104,22 @@ namespace Microsoft.AspNetCore.Sockets.Client
                 {
                     var memory = _application.Output.GetMemory();
 
-                    // REVIEW: Use new Memory<byte> websocket APIs on .NET Core 2.1
-                    // There's an issue where the result received from the Memory<byte> overload
-                    // is missing properties we use https://github.com/dotnet/corefx/issues/27257
+#if NETCOREAPP2_1
+                    var receiveResult = await _webSocket.ReceiveAsync(memory, _receiveCts.Token);
+#else
                     memory.TryGetArray(out var arraySegment);
 
                     // Exceptions are handled above where the send and receive tasks are being run.
                     var receiveResult = await _webSocket.ReceiveAsync(arraySegment, _receiveCts.Token);
+#endif
 
                     if (receiveResult.MessageType == WebSocketMessageType.Close)
                     {
-                        _logger.WebSocketClosed(receiveResult.CloseStatus);
+                        _logger.WebSocketClosed(_webSocket.CloseStatus);
 
-                        if (receiveResult.CloseStatus != WebSocketCloseStatus.NormalClosure)
+                        if (_webSocket.CloseStatus != WebSocketCloseStatus.NormalClosure)
                         {
-                            throw new InvalidOperationException($"Websocket closed with error: {receiveResult.CloseStatus}.");
+                            throw new InvalidOperationException($"Websocket closed with error: {_webSocket.CloseStatus}.");
                         }
 
                         return;
