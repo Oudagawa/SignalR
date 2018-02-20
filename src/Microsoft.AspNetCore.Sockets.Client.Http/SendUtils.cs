@@ -3,12 +3,10 @@
 
 using System;
 using System.Buffers;
-using System.Diagnostics;
 using System.IO;
 using System.IO.Pipelines;
 using System.Net;
 using System.Net.Http;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Sockets.Client.Http;
@@ -110,18 +108,9 @@ namespace Microsoft.AspNetCore.Sockets.Client
                 _buffer = buffer;
             }
 
-            protected override async Task SerializeToStreamAsync(Stream stream, TransportContext context)
+            protected override Task SerializeToStreamAsync(Stream stream, TransportContext context)
             {
-                foreach (var segment in _buffer)
-                {
-#if NETCOREAPP2_1
-                    await stream.WriteAsync(segment);
-#else
-                    bool isArray = MemoryMarshal.TryGetArray(segment, out var arraySegment);
-                    Debug.Assert(isArray);
-                    await stream.WriteAsync(arraySegment.Array, arraySegment.Offset, arraySegment.Count);
-#endif
-                }
+                return stream.WriteAsync(_buffer);
             }
 
             protected override bool TryComputeLength(out long length)
