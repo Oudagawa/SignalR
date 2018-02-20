@@ -111,9 +111,12 @@ namespace Microsoft.AspNetCore.Sockets.Internal.Formatters
 #if NETCOREAPP2_1
             output.Write(payload.Span);
 #else
-            var isArray = MemoryMarshal.TryGetArray(payload, out var segment);
-            Debug.Assert(isArray);
-            output.Write(segment.Array, segment.Offset, segment.Count);
+            if (payload.Length > 0)
+            {
+                var isArray = MemoryMarshal.TryGetArray(payload, out var segment);
+                Debug.Assert(isArray);
+                output.Write(segment.Array, segment.Offset, segment.Count);
+            }
 #endif
             output.Write(Newline, 0, Newline.Length);
         }
