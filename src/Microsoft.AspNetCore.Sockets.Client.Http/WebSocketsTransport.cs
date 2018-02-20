@@ -107,7 +107,8 @@ namespace Microsoft.AspNetCore.Sockets.Client
 #if NETCOREAPP2_1
                     var receiveResult = await _webSocket.ReceiveAsync(memory, _receiveCts.Token);
 #else
-                    memory.TryGetArray(out var arraySegment);
+                    var isArray = memory.TryGetArray(out var arraySegment);
+                    Debug.Assert(isArray);
 
                     // Exceptions are handled above where the send and receive tasks are being run.
                     var receiveResult = await _webSocket.ReceiveAsync(arraySegment, _receiveCts.Token);
@@ -168,27 +169,7 @@ namespace Microsoft.AspNetCore.Sockets.Client
                         {
                             _logger.ReceivedFromApp(buffer.Length);
 
-#if NETCOREAPP2_1
-                            if (buffer.IsSingleSegment)
-                            {
-                                await _webSocket.SendAsync(buffer.First, webSocketMessageType, endOfMessage: true, _transportCts.Token);
-                            }
-                            else
-                            {
-                                await _webSocket.SendAsync(buffer.ToArray(), webSocketMessageType, endOfMessage: true, _transportCts.Token);
-                            }
-#else
-                            if (buffer.IsSingleSegment)
-                            {
-                                var isArray = MemoryMarshal.TryGetArray(buffer.First, out var segment);
-                                Debug.Assert(isArray);
-                                await _webSocket.SendAsync(segment, webSocketMessageType, endOfMessage: true, _transportCts.Token);
-                            }
-                            else
-                            {
-                                await _webSocket.SendAsync(new ArraySegment<byte>(buffer.ToArray()), webSocketMessageType, true, _transportCts.Token);
-                            }
-#endif
+                            await _webSocket.SendAsync(buffer, webSocketMessageType, _transportCts.Token);
                         }
                         else if (result.IsCompleted)
                         {

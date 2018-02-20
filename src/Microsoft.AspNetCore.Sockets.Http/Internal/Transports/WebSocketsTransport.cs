@@ -116,7 +116,8 @@ namespace Microsoft.AspNetCore.Sockets.Internal.Transports
 #if NETCOREAPP2_1
                     var receiveResult = await socket.ReceiveAsync(memory, CancellationToken.None);
 #else
-                    memory.TryGetArray(out var arraySegment);
+                    var isArray = memory.TryGetArray(out var arraySegment);
+                    Debug.Assert(isArray);
 
                     // Exceptions are handled above where the send and receive tasks are being run.
                     var receiveResult = await socket.ReceiveAsync(arraySegment, CancellationToken.None);
@@ -166,29 +167,7 @@ namespace Microsoft.AspNetCore.Sockets.Internal.Transports
 
                             if (WebSocketCanSend(ws))
                             {
-                                // TODO: Consider chunking writes here if we get a multi segment buffer
-#if NETCOREAPP2_1
-                                if (buffer.IsSingleSegment)
-                                {
-                                    await ws.SendAsync(buffer.First, webSocketMessageType, endOfMessage: true, CancellationToken.None);
-                                }
-                                else
-                                {
-                                    await ws.SendAsync(buffer.ToArray(), webSocketMessageType, endOfMessage: true, CancellationToken.None);
-                                }
-#else
-                                if (buffer.IsSingleSegment)
-                                {
-                                    var isArray = MemoryMarshal.TryGetArray(buffer.First, out var segment);
-                                    Debug.Assert(isArray);
-                                    await ws.SendAsync(segment, webSocketMessageType, endOfMessage: true, CancellationToken.None);
-                                }
-                                else
-                                {
-                                    await ws.SendAsync(new ArraySegment<byte>(buffer.ToArray()), webSocketMessageType, true, CancellationToken.None);
-                                }
-#endif
-
+                                await ws.SendAsync(buffer, webSocketMessageType);
                             }
                         }
                         catch (WebSocketException socketException) when (!WebSocketCanSend(ws))
